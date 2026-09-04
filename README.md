@@ -33,16 +33,44 @@ make build
 make run -s
 ```
 
-## 2026 results (CI)
+2026 September results on GitHub Actions (ubuntu-latest), pulldown-cmark 0.13.4 & comrak 0.54.0
 
-The Rust parsers are now pinned to current releases (**pulldown-cmark 0.13.4**,
-**comrak 0.54.0**; C parsers unchanged). Rather than pasting numbers here, the
-benchmark runs in GitHub Actions — see [`.github/workflows/benchmark.yml`](.github/workflows/benchmark.yml).
+Produced by CI — see [`.github/workflows/benchmark.yml`](.github/workflows/benchmark.yml)
+([Actions runs](../../actions/workflows/benchmark.yml)). Rust parsers bumped to current
+releases; C parsers, methodology and `sample1.md` unchanged.
 
-Each run publishes the full table to the workflow's **job summary** and uploads a
-`benchmark-results` artifact. Trigger it from the **Actions** tab
-("Run workflow") or let it run automatically on push. Methodology and `sample1.md`
-are unchanged from the original benchmark below.
+```bash
+$ make run -s
+Blackfriday (Go):
+  1000 iterations = 0.044s
+ 10000 iterations = 0.409s
+100000 iterations = 4.151s
+
+Comrak (Rust):
+  1000 iterations =   0.055s
+ 10000 iterations =   0.545s
+100000 iterations =   5.463s
+
+Pulldown-cmark (Rust):
+  1000 iterations =   0.019s
+ 10000 iterations =   0.198s
+100000 iterations =   2.000s
+
+Cmark (C):
+  1000 iterations =   0.040s
+ 10000 iterations =   0.403s
+100000 iterations =   4.011s
+
+Hoedown (C):
+  1000 iterations =   0.020s
+ 10000 iterations =   0.204s
+100000 iterations =   2.028s
+
+MD4C (C) with empty callbacks:
+  1000 iterations =   0.012s
+ 10000 iterations =   0.128s
+100000 iterations =   1.291s
+```
 
 2020 August results on Intel Core i7 6700 @ 4.0GHz
 
