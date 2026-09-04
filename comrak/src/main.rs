@@ -1,6 +1,7 @@
 use std::fs;
 use std::time::Instant;
-use comrak::{markdown_to_html, ComrakOptions};
+// comrak 0.8 -> 0.54: `ComrakOptions` was renamed to `Options`.
+use comrak::{markdown_to_html, Options as ComrakOptions};
 
 fn main() {
     let input = fs::read_to_string("../sample1.md")

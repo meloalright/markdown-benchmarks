@@ -33,6 +33,17 @@ make build
 make run -s
 ```
 
+## 2026 results (CI)
+
+The Rust parsers are now pinned to current releases (**pulldown-cmark 0.13.4**,
+**comrak 0.54.0**; C parsers unchanged). Rather than pasting numbers here, the
+benchmark runs in GitHub Actions — see [`.github/workflows/benchmark.yml`](.github/workflows/benchmark.yml).
+
+Each run publishes the full table to the workflow's **job summary** and uploads a
+`benchmark-results` artifact. Trigger it from the **Actions** tab
+("Run workflow") or let it run automatically on push. Methodology and `sample1.md`
+are unchanged from the original benchmark below.
+
 2020 August results on Intel Core i7 6700 @ 4.0GHz
 
 ```bash

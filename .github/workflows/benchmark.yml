@@ -1,0 +1,106 @@
+name: benchmark
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Go toolchain
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake
+
+      - name: Build C parsers (cmark, hoedown, md4c) as siblings
+        working-directory: ${{ github.workspace }}/..
+        run: |
+          set -eux
+          [ -d cmark ]   || git clone --depth 1 https://github.com/commonmark/cmark.git
+          [ -d hoedown ] || git clone --depth 1 https://github.com/hoedown/hoedown.git
+          [ -d md4c ]    || git clone --depth 1 https://github.com/mity/md4c.git
+          cmake -S cmark -B cmark/build >/dev/null
+          cmake --build cmark/build >/dev/null
+          make -C hoedown >/dev/null
+
+      - name: Prepare Blackfriday (Go module)
+        continue-on-error: true
+        run: |
+          set -x
+          # blackfriday/main.go uses the legacy import path
+          # gopkg.in/russross/blackfriday.v2, but the module now declares its path
+          # as github.com/russross/blackfriday/v2. Map it with a replace directive
+          # so the original source stays untouched. Non-fatal: if this fails,
+          # Blackfriday is simply reported as "(failed)" and the rest still runs.
+          go mod init bench 2>/dev/null || true
+          go mod edit -replace=gopkg.in/russross/blackfriday.v2=github.com/russross/blackfriday/v2@v2.1.0
+          go mod tidy || true
+
+      - name: Build harnesses
+        run: make build
+
+      - name: Record parser versions
+        id: versions
+        run: |
+          set -eu
+          # Both Cargo.lock files contain a local wrapper package that shares the
+          # crate's name, so match only the block that has a `source =` line
+          # (the real registry crate).
+          getver() {
+            awk -v pkg="\"$1\"" '
+              /^\[\[package\]\]/ {n="";v="";s=0}
+              $1=="name"    {n=$3}
+              $1=="version" {v=$3}
+              $1=="source"  {s=1}
+              /^$/ { if (n==pkg && s) { gsub(/"/,"",v); print v; exit } }
+            ' "$2"
+          }
+          echo "pulldown-cmark=$(getver pulldown-cmark pulldown-cmark/Cargo.lock)" >> "$GITHUB_OUTPUT"
+          echo "comrak=$(getver comrak comrak/Cargo.lock)" >> "$GITHUB_OUTPUT"
+
+      - name: Run benchmark
+        run: |
+          # Invoke each harness directly (same commands as `make run`) so one
+          # parser failing does not discard the others' results.
+          {
+            echo "Blackfriday (Go):";               go run blackfriday/main.go        || echo "  (failed)"
+            echo "Comrak (Rust):";                   (cd comrak && cargo run -q --release)         || echo "  (failed)"
+            echo "Pulldown-cmark (Rust):";           (cd pulldown-cmark && cargo run -q --release) || echo "  (failed)"
+            echo "Cmark (C):";                       ./cmark/cmark                     || echo "  (failed)"
+            echo "Hoedown (C):";                     ./hoedown/hoedown                 || echo "  (failed)"
+            echo "MD4C (C) with empty callbacks:";   ./md4c/md4c                       || echo "  (failed)"
+          } | tee results.txt
+
+      - name: Publish job summary
+        if: always()
+        run: |
+          {
+            echo "# Markdown benchmark results"
+            echo ""
+            echo "- Runner: \`${{ runner.os }}\` / \`$(nproc)\` cores, $(uname -m)"
+            echo "- pulldown-cmark: \`${{ steps.versions.outputs.pulldown-cmark }}\`"
+            echo "- comrak: \`${{ steps.versions.outputs.comrak }}\`"
+            echo "- Document: \`sample1.md\`, methodology unchanged from the original benchmark"
+            echo ""
+            echo '```'
+            cat results.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload results artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: results.txt
